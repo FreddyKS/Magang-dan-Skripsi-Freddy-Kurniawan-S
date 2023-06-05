@@ -1,0 +1,140 @@
+Queue
+
+1. You want to purchase a fried chicken. 
+Luckily for you, there is nobody queueing in the counter.
+As a C programmer, can you enqueue yourself to the counter?
+(Illustration of counter, 
+tell the user that there is 3 pointer : front, rear, and You)
+
+Answer for no.1 : 
+ front=rear=You; OR rear=front=You;
+ rear->next=NULL;
+
+2. It is 7 P.M. , you are hungry and wanted to buy some martabak,
+Below is the situation in the martabak store.
+Can you enqueue yourself in C language way?
+(Illustration of counter with 3 people enqueueing, 
+tell the user that there is 3 pointer : front, rear, and You)
+
+Answer for no.2 :
+ rear=You;
+ rear->next=NULL;
+
+3. Now this is your turn to be served in fried chicken store,
+Here is the condition. Can you make the counter serve you?
+(Illustration of counter with 3 people with You in front of the counter, 
+tell the user that there is 3 pointer : front, rear, and You)
+
+Answer for no.3 :
+ front=You;
+ front=front->next;
+ free(You);
+
+4. You want to purchase a pizza at 3 A.M. . You pick the queue number 
+Luckily for you, you got number 1.
+As a C programmer, can you enqueue yourself?
+(Illustration of pizza counter, 
+tell the user that there is 3 pointer : front, rear, and YourQueueNumber)
+
+Answer for no.4 : 
+ front=rear=YourQueueNumber; OR rear=front=YourQueueNumber;
+ rear->next=NULL;
+
+5. It is 6 P.M. , you are hungry and wants some pizza for dinner .
+Again you pick the queue number and you got number 3
+Below is the situation in the pizza store.
+Can you enqueue yourself in C language way?
+(Illustration of pizza counter with 3 people waiting, 
+tell the user that there is 3 pointer : front, rear, and You)
+
+Answer for no.5 :
+ rear=YourQueueNumber;
+ rear->next=NULL;
+
+6. Now this is your turn to order your pizza at the counter,
+Here is the condition. Can you make the counter serve you?
+(Illustration of pizza counter with You in front of the counter, 
+tell the user that there is 3 pointer : front, rear, and You)
+
+Answer for no.6 :
+ front=YourQueueNumber;
+ front=front->next;
+ free(You);
+
+Stack
+
+1. You just receive a package from your friends, you want to open it later.
+   How do you make You put the package on the floor in your room?
+   (there is 2 pointer : top, and YourPackage)
+
+Answer for no.1 :
+  top=YourPackage;
+  top->next=NULL;
+
+2. You receive another package from your friends, you also want to open it later.
+   You want to put it on the top of the other package
+   How do you make You put the package on the top of that other package?
+   (there is 2 pointer : top, and YourPackage)
+
+Answer for no.2 :
+  YourPackage->next=top;
+  top=YourPackage;
+
+3. Fine, lets open the package. But for now, just take 1 package to be opened.
+   As a C programmer, take 1 package from that stack.
+   (there is 2 pointer : top, and YourPackage)
+
+Answer for no.3 :
+  YourPackage=top;
+  top=top->next;
+  free(YourPackage);
+
+4. You just bought a trouser. You want to store it in the cupboard
+   How do you make You put the trouser in the cupboard?
+   (cupboard is empty, there is 2 pointer : top, and YourOutfit)
+
+Answer for no.4 :
+  top=YourOutfit;
+  top->next=NULL;
+
+
+5. You bought a pajamas, you want to store it in the cupboard.
+   Remember you just put a trouser there.
+   How do you make You put the pajamas on the top of the trouser?
+   (there is 2 pointer : top, and YourOutfit)
+
+Answer for no.5 :
+  YourOutfit->next=top;
+  top=YourOutfit;
+
+
+6. Now, it is time to go to sleep. You want to use the pajamas you just bought
+   As a C programmer, take that pajamas from the cupboard.
+   (there is 2 pointer : top, and YourOutfit)
+
+
+Answer for no.6 :
+  YourOutfit=top;
+  top=top->next;
+  free(YourOutfit);
+
+Struct and Pointers
+
+1. How do we define the 'grappling hook' (pointer) next in this struct
+   (Show bucket filled with text : struct Data { int a;//1; }//2;)
+   a. int* next; in //1
+   b. struct Data *next; in //1
+   c. struct Data *next; in //2
+   d. int next; in //1
+
+Answer: b
+
+2. How do we make the 'sticky notes' to mark a data with text 'front'
+   in this struct
+(Show bucket filled with text : struct Data { int a;//1; }//2;)
+   a. *front in //2
+   b. *front; in //1
+   c. struct Data *front; in //1
+   d. struct Data *front; in //2
+
+Answer: b
