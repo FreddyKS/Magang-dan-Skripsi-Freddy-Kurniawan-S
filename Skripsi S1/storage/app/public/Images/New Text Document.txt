@@ -1,0 +1,1364 @@
+/*
+    INTERFACE Untuk DATA TERUPDATE
+    
+Cara Penggunaan : 
+1. Copy dan Paste Script ini ke dalam SQL Editor di DBeaver
+2. Tekan Alt+X atau Execute SQL Script
+
+CATATAN:
+Beberapa tabel memiliki format tanggal yang berbeda:
+ 1. tanggal, bulan, dan tahun dalam kolom terpisah
+    (
+     Tabel dgn kondisi no. 1:
+     - data_total_produksi_pertamina
+    )
+ 2. tahun dan bulan dalam kolom terpisah dan tidak ada tanggal
+    (
+     Tabel dgn kondisi no. 2:
+     - umkm_pegadaian_proyeksi
+     - umkm_pnm_proyeksi
+     - data_arpu_jenis_layanan_telkomsel
+     - data_arpu_jenis_pembayaran_telkomsel
+     - data_total_lifting_pertamina
+     - data_total_produksi_pertamina
+     - data_garuda
+     - program_penyerapan_beras_bulog
+     - data_pupuk_pi
+     )
+ 3. hanya ada bulan dan bulannya berbentuk tulisan (misal. Juni)
+    (
+     Tabel dgn kondisi no.3 : 
+     - pertamina_1
+     - pertamina_2
+     - pertamina_3
+     - pertamina_4
+     - pertamina_5
+     - pertamina_6
+     - telkom_1
+     - telkom_2
+     - telkom_3
+     - pln_1
+     - pln_2
+     )
+ 4. Hanya ada bulan dan tahun dan bulannya berbentuk tulisan
+    (
+     Tabel dgn kondisi no.4 :
+     - insentif_listrik_pln
+     - pelanggan_per_segment_pln
+     - pendapatan_pln
+     - dm_total_penjualan_pertamina
+     - penjualan_by_product_inalum
+     - penjualan_by_prov_inalum
+     - penjualan_inalum
+     - penyaluran_by_jenis_pupuk_idn
+     - penyaluran_by_prov_pupuk_idn
+     - penyaluran_pupuk_idn
+     - penjualan_semen
+     - penjualan_semen_per_jenis_kemas
+     - penjualan_by_komoditas_ptpn
+     - penjualan_v_produksi_ptpn
+     - program_penyerapan_beras_bulog
+     - stock_bulog
+     - customer_inalum
+     - data_komoditi_inalum
+    )
+ 5. tidak memiliki data tanggal sama sekali 
+    (
+     Tabel dgn kondisi no.5 :
+     - dm_warehouse_bgr
+     - dm_tabel_gol_pln
+     - dm_tabel_ptpn
+     - data_airport_cd_garuda
+    )
+ 6. tidak ada datanya sama sekali
+    (
+     Tabel dgn kondisi no.6 :
+     - dm_arpu_telkomsel
+     - semen_sales
+     - dm_cargo_citilink
+     - dm_pergerakan_tol_laut_pelni
+    )
+ 7. format tanggalnya berupa periode dalam bentuk YYYYMM atau YYYY-MM (misal. 202008 atau 2020-08)
+    (
+    Tabel dgn kondisi no.7 :
+    - dash_kai1
+    - dash_kai2
+    - dash_kai3
+    - dm_stimulus_covid19_pln
+    - dm_stimulus_covid19_pln_copy
+    - dm_arpu_telkomsel_jenis_layanan
+    - dm_arpu_telkomsel_jenis_pembayaran
+    - dm_arpurev_nasional_telkomsel
+    - dm_arpurev_regional_telkomsel
+    - int_arpu
+    - int_arpu_cro
+    - int_arpu_kota
+    - int_arpu_reg
+    - int_arpu_regional
+    )
+ 8. format tanggalnya berupa bulan dan tahun dalam 1 kolom dan bulannya berbentuk tulisan (misal. Sep 2020)
+    (
+    Tabel dgn kondisi no.8
+    - dash_kai
+    )
+Tabel-tabel diatas, ditampilkan sebagai berikut:
+- Untuk kondisi no. 1           : ditampilkan dengan format `max(tahun)-max(bulan)-max(tanggal)` di tanggal_terupdate
+- Untuk kondisi no. 2 dan 4     : ditampilkan dengan format `max(tahun)-max(bulan)` di tanggal_terupdate
+- Untuk kondisi no. 3           : ditampilkan max(bulan) di tanggal_terupdate
+- Untuk kondisi no. 5           : ditampilkan tulisan '(tidak ada atribut tanggal)' di tanggal_terupdate,
+- Untuk kondisi no. 6           : ditampilkan tulisan '(tidak ada data sama sekali)' di tanggal_terupdate yang berarti nihil
+- Untuk kondisi no. 7		: ditampilkan periode dengan format `YYYYMM/YYYY-MM` di tanggal_terupdate
+- Untuk kondisi no. 8           : ditampilkan dengan format `MMM YYYY` di tanggal_terupdate
+- Kondisi lainnya               : ditampilkan max(tanggal) dalam tanggal_terupdate
+
+Jika ada kesalahan dalam tanggal/bulan/tahun, maka akan ada tulisan dibawah ini sebelum tanggal_terupdate nya ditampilkan:
+1. "(<!> tanggal salah)" atau "(<!> tanggal di atribut ... salah)"  : 
+    > tanggal yang diinput lebih daripada sekarang (misal. hari ini tanggal 2020-10-02, tapi ada tanggal 2020-11-05 di tabelnya)
+2. "(<!> bulan salah)" atau "(<!> bulan di atribut ... salah)"      : 
+    > bulan yang diinput ditahun sekarang ini lebih daripada sekarang (misal. hari ini bulan 8 tahun 2020, tetapi ada bulan 10 tahun 2020 di tabelnya)
+3. "(<!> tahun salah)" atau "(<!> tahun di atribut ... salah)"      : 
+    > tahun yang diinput lebih daripada sekarang (misal. hari ini tahun 2020, tetapi ada tahun 2021 di tabelnya)
+
+*/
+DECLARE @Error INT;
+SET @Error = 1;
+SELECT 'Angkasa Pura' AS nama_BUMN, 'airport_code' AS nama_tabel, '(tidak ada atribut tanggal)' AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.airport_code
+UNION ALL 
+SELECT 'Angkasa Pura 1' AS nama_BUMN, 'dm_passenger_cargo_ap1' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_passenger_cargo_ap1 dpca 
+UNION ALL
+SELECT 'Angkasa Pura 1' AS nama_BUMN, 'dm_kelas_bandara_ap1' AS nama_tabel , 
+ CASE
+  WHEN max(tgl_updated) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tgl_updated) > NOW() THEN CONCAT('(<!> tanggal di atribut tgl_updated salah)',max(tgl_updated))
+  WHEN max(tgl_updated) > CURDATE() THEN SET @Error=@Error+1
+  WHEN max(tgl_updated) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tgl_updated)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_kelas_bandara_ap1
+UNION ALL
+SELECT 'Angkasa Pura 2' AS nama_BUMN, 'dm_passenger_cargo_ap2' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_passenger_cargo_ap2
+UNION ALL
+SELECT 'Angkasa Pura 2' AS nama_BUMN, 'dm_kelas_bandara_ap2' AS nama_tabel , 
+ CASE
+  WHEN max(tgl_updated) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tgl_updated) > NOW() THEN CONCAT('(<!> tanggal di atribut tgl_updated salah)',max(tgl_updated))
+  WHEN max(tgl_updated) > CURDATE() THEN SET @Error=@Error+1
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tgl_updated)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_kelas_bandara_ap2
+UNION ALL
+SELECT 'Pegadaian' AS nama_BUMN, 'dm_pertumbuhan_produk_pgadai' AS nama_tabel ,
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pertumbuhan_produk_pgadai
+UNION ALL
+SELECT 'Pegadaian' AS nama_BUMN, 'umkm_pegadaian' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.umkm_pegadaian
+UNION ALL
+SELECT 'Pegadaian' AS nama_BUMN, 'umkm_pegadaian_proyeksi' AS nama_tabel ,
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(bulan) > MONTH(CURDATE()) OR max(tahun) > YEAR(CURDATE()) THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.umkm_pegadaian_proyeksi WHERE tahun=(SELECT max(tahun) FROM pen_bumn.umkm_pegadaian_proyeksi)
+UNION ALL
+SELECT 'PNM' AS nama_BUMN, 'dm_produk_pnm' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_produk_pnm
+UNION ALL
+SELECT 'PNM' AS nama_BUMN, 'umkm_pnm' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.umkm_pnm
+UNION ALL
+SELECT 'PNM' AS nama_BUMN, 'umkm_pnm_proyeksi' AS nama_tabel ,
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(bulan) > MONTH(CURDATE()) OR max(tahun) > YEAR(CURDATE()) THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun))
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.umkm_pnm_proyeksi WHERE tahun=(SELECT max(tahun) FROM pen_bumn.umkm_pnm_proyeksi)
+UNION ALL
+SELECT 'Askrindo' AS nama_BUMN, 'dm_pen_kur_jamkrindo' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pen_kur_askrindo
+UNION ALL
+SELECT 'Askrindo' AS nama_BUMN, 'dm_produk_askrindo' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_produk_askrindo
+UNION ALL
+SELECT 'Jamkrindo' AS nama_BUMN, 'dm_komersil_jamkrindo' AS nama_tabel ,
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_komersil_jamkrindo
+UNION ALL
+SELECT 'Jamkrindo' AS nama_BUMN, 'dm_kur_pen_jamkrindo' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_kur_pen_jamkrindo
+UNION ALL
+SELECT 'Jamkrindo' AS nama_BUMN, 'dm_pen_kur_jamkrindo' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pen_kur_jamkrindo
+UNION ALL
+SELECT 'KAI' AS nama_BUMN, 'dash_kai' AS nama_tabel ,   
+ CASE
+  WHEN max(bulan_tahun) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(bulan_tahun),5,8) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di bulan_tahun salah) ',max(bulan_tahun))
+  WHEN SUBSTRING(max(bulan_tahun),1,3) > MONTH(CURDATE()) AND SUBSTRING(max(bulan_tahun),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di bulan_tahun salah) ',max(bulan_tahun))
+  WHEN SUBSTRING(max(bulan_tahun),1,3) > MONTH(CURDATE()) OR SUBSTRING(max(bulan_tahun)) > YEAR(CURDATE()) THEN SET @Error=@Error+1 ELSE max(bulan_tahun) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dash_kai
+UNION ALL
+SELECT 'KAI' AS nama_BUMN, 'dash_kai1' AS nama_tabel ,   
+ CASE
+  WHEN max(y_m) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(y_m),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di y_m salah) ',max(y_m))
+  WHEN SUBSTRING(max(y_m),6,7) > MONTH(CURDATE()) AND SUBSTRING(max(y_m),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di atribut y_m salah) ',max(y_m))
+  WHEN max(bulan) > MONTH(CURDATE()) OR SUBSTRING(max(y_m),1,4) > YEAR(CURDATE()) THEN SET @Error=@Error+1 ELSE max(y_m) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dash_kai1
+UNION ALL
+SELECT 'KAI' AS nama_BUMN, 'dash_kai2' AS nama_tabel ,   
+ CASE
+  WHEN max(y_m) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(y_m),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di y_m salah) ',max(y_m))
+  WHEN SUBSTRING(max(y_m),6,7) > MONTH(CURDATE()) AND SUBSTRING(max(y_m),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di atribut y_m salah) ',max(y_m))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(y_m) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dash_kai2
+UNION ALL
+SELECT 'KAI' AS nama_BUMN, 'dash_kai3' AS nama_tabel ,   
+ CASE
+  WHEN max(y_m) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(y_m),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di y_m salah) ',max(y_m))
+  WHEN SUBSTRING(max(y_m),6,7) > MONTH(CURDATE()) AND SUBSTRING(max(y_m),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di atribut y_m salah) ',max(y_m))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(y_m) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dash_kai3
+UNION ALL
+SELECT 'KAI' AS nama_BUMN, 'dm_pengiriman_barang_kai' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pengiriman_barang_kai
+UNION ALL
+SELECT 'KAI' AS nama_BUMN, 'dm_penumpang_kai' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penumpang_kai
+UNION ALL
+SELECT 'ASDP' AS nama_BUMN, 'dm_pergerakan_kapal_asdp' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_kapal_asdp
+UNION ALL
+SELECT 'PELNI' AS nama_BUMN, 'dm_pergerakan_kapal_penumpang_pelni' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal_origin) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal_origin) > CURDATE() THEN CONCAT('(<!> tanggal_origin salah) ',max(tanggal_origin))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal_origin) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_kapal_penumpang_pelni
+UNION ALL
+SELECT 'PELNI' AS nama_BUMN, 'dm_pergerakan_tol_laut_pelni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal_berangkat) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal_berangkat) > CURDATE() THEN CONCAT('(<!> tanggal_berangkat salah) ',max(tanggal_berangkat))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal_berangkat) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_tol_laut_pelni
+UNION ALL
+SELECT 'Pelindo 1' AS nama_BUMN, 'dm_pergerakan_kapal_pelindo1' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_kapal_pelindo1
+UNION ALL
+SELECT 'Pelindo 1' AS nama_BUMN, 'dm_pergerakan_nonpetikemas_pelindo1' AS nama_tabel ,
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_nonpetikemas_pelindo1
+UNION ALL
+SELECT 'Pelindo 1' AS nama_BUMN, 'dm_pergerakan_penumpanng_pelindo1' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_penumpanng_pelindo1
+UNION ALL
+SELECT 'Pelindo 1' AS nama_BUMN, 'dm_pergerakan_petikemas_pelindo1' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_petikemas_pelindo1
+UNION ALL
+SELECT 'Pelindo 2' AS nama_BUMN, 'dm_pergerakan_kapal_pelindo2' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_kapal_pelindo2
+UNION ALL
+SELECT 'Pelindo 2' AS nama_BUMN, 'dm_pergerakan_nonpetikemas_pelindo2' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_nonpetikemas_pelindo2
+UNION ALL
+SELECT 'Pelindo 2' AS nama_BUMN, 'dm_pergerakan_penumpanng_pelindo2' AS nama_tabel ,
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_penumpanng_pelindo2
+UNION ALL
+SELECT 'Pelindo 2' AS nama_BUMN, 'dm_pergerakan_petikemas_pelindo2' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_petikemas_pelindo2
+UNION ALL
+SELECT 'Pelindo 3' AS nama_BUMN, 'dm_pergerakan_kapal_pelindo3' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_kapal_pelindo3
+UNION ALL
+SELECT 'Pelindo 3' AS nama_BUMN, 'dm_pergerakan_nonpetikemas_pelindo3' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_nonpetikemas_pelindo3
+UNION ALL
+SELECT 'Pelindo 3' AS nama_BUMN, 'dm_pergerakan_penumpanng_pelindo3' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_penumpanng_pelindo3
+UNION ALL
+SELECT 'Pelindo 3' AS nama_BUMN, 'dm_pergerakan_petikemas_pelindo3' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_petikemas_pelindo3
+UNION ALL
+SELECT 'Pelindo 4' AS nama_BUMN, 'dm_pergerakan_kapal_pelindo4' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_kapal_pelindo4
+UNION ALL
+SELECT 'Pelindo 4' AS nama_BUMN, 'dm_pergerakan_nonpetikemas_pelindo4' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_nonpetikemas_pelindo4
+UNION ALL
+SELECT 'Pelindo 4' AS nama_BUMN, 'dm_pergerakan_penumpanng_pelindo4' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_penumpanng_pelindo4
+UNION ALL
+SELECT 'Pelindo 4' AS nama_BUMN, 'dm_pergerakan_petikemas_pelindo4' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pergerakan_petikemas_pelindo4
+UNION ALL
+SELECT 'Pos Indonesia' AS nama_BUMN, 'dm_penyaluran_bansos_pos' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penyaluran_bansos_pos
+UNION ALL
+SELECT 'Pos Indonesia' AS nama_BUMN, 'dm_produksi_pos' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_produksi_pos
+UNION ALL
+SELECT 'Pos Indonesia' AS nama_BUMN, 'dm_produksi_produk_pos' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_produksi_produk_pos
+UNION ALL
+SELECT 'BGR' AS nama_BUMN, 'dm_cluster_pangan_bgr' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_cluster_pangan_bgr
+UNION ALL
+SELECT 'BGR' AS nama_BUMN, 'dm_transaksi_mitra_bgr' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal_transaksi) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal_transaksi) > CURDATE() THEN CONCAT('(<!> tanggal_transaksi salah) ',max(tanggal_transaksi))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal_transaksi) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_transaksi_mitra_bgr
+UNION ALL
+SELECT 'BGR' AS nama_BUMN, 'dm_warehouse_bgr' AS nama_tabel,  '(tidak ada atribut tanggal)' AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_warehouse_bgr
+UNION ALL
+SELECT 'BGR' AS nama_BUMN, 'dm_wo_armada_bgr' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal_tiba) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal_tiba) > CURDATE() THEN CONCAT('(<!> tanggal_tiba salah) ',max(tanggal_tiba))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal_tiba) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_wo_armada_bgr
+UNION ALL
+SELECT 'RNI' AS nama_BUMN, 'dm_inventory_rni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_inventory_rni
+UNION ALL
+SELECT 'RNI' AS nama_BUMN, 'dm_pembelian_rni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pembelian_rni
+UNION ALL
+SELECT 'RNI' AS nama_BUMN, 'dm_penjualan_rni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penjualan_rni
+UNION ALL
+SELECT 'Jasa Marga' AS nama_BUMN, 'dm_lalin_jmarga' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_lalin_jmarga
+UNION ALL
+SELECT 'Antara' AS nama_BUMN, 'dm_berita_antara' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > NOW() THEN CONCAT('(<!> tanggal salah)',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_berita_antara
+UNION ALL
+SELECT 'Antara' AS nama_BUMN, 'dm_pelanggan_antara' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pelanggan_antara
+UNION ALL
+SELECT 'Antara' AS nama_BUMN, 'dm_pendapatan_antara' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pendapatan_antara
+UNION ALL
+SELECT 'Antara' AS nama_BUMN, 'dm_pengunjung_antara' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pengunjung_antara
+UNION ALL
+SELECT 'Bio Farma' AS nama_BUMN, 'dm_bantuan_csr_biofarma' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bantuan_csr_biofarma
+UNION ALL
+SELECT 'Bio Farma' AS nama_BUMN, 'dm_business_continuty_biofarma' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_business_continuty_biofarma
+UNION ALL
+SELECT 'Bio Farma' AS nama_BUMN, 'dm_inventory_biofarma' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_inventory_biofarma
+UNION ALL
+SELECT 'ITDC' AS nama_BUMN, 'dm_occupancy_rate_itdc' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_occupancy_rate_itdc
+UNION ALL
+SELECT 'ITDC' AS nama_BUMN, 'dm_pendapatan_itdc' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pendapatan_itdc
+UNION ALL
+SELECT 'ITDC' AS nama_BUMN, 'dm_pendapatan_itdc_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pendapatan_itdc_copy
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'dm_pendapatan_Penjualan_pln' AS nama_tabel ,  
+ CASE
+  WHEN max(blnthn) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(blnthn),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di blnthn salah) ',max(blnthn))
+  WHEN SUBSTRING(max(blnthn),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(blnthn),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di blnthn salah) ',max(blnthn))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(blnthn) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pendapatan_Penjualan_pln
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'dm_pendapatan_Penjualan_pln_copy' AS nama_tabel ,   
+ CASE
+  WHEN max(blnthn) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(blnthn),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di blnthn salah) ',max(blnthn))
+  WHEN SUBSTRING(max(blnthn),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(blnthn),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di blnthn salah) ',max(blnthn))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(blnthn) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pendapatan_Penjualan_pln_copy
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'dm_stimulus_covid19_pln' AS nama_tabel ,   
+ CASE
+  WHEN max(blnthn) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(blnthn),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di blnthn salah) ',max(blnthn))
+  WHEN SUBSTRING(max(blnthn),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(blnthn),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di blnthn salah) ',max(blnthn))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(blnthn) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_stimulus_covid19_pln
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'dm_stimulus_covid19_pln_copy' AS nama_tabel ,   
+ CASE
+  WHEN max(blnthn) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(blnthn),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di blnthn salah) ',max(blnthn))
+  WHEN SUBSTRING(max(blnthn),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(blnthn),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di blnthn salah) ',max(blnthn))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(blnthn) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_stimulus_covid19_pln_copy
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'dm_tabel_gol_pln' AS nama_tabel, '(tidak ada atribut tanggal)' AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_tabel_gol_pln
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'insentif_listrik_pln' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.insentif_listrik_pln WHERE tahun=(SELECT max(tahun) FROM pen_bumn.insentif_listrik_pln)
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'pelanggan_per_segment_pln' AS nama_tabel ,
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun))
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pelanggan_per_segment_pln WHERE tahun=(SELECT max(tahun) FROM pen_bumn.pelanggan_per_segment_pln)
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'pendapatan_pln' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pendapatan_pln WHERE tahun=(SELECT max(tahun) FROM pen_bumn.pendapatan_pln)
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'pln_1' AS nama_tabel,
+ CASE
+  WHEN max(date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pln_1
+UNION ALL
+SELECT 'PLN' AS nama_BUMN, 'pln_2' AS nama_tabel,  
+ CASE
+  WHEN max(date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pln_2
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'data_total_lifting_pertamina' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(tahun),'-',max(bulan)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_total_lifting_pertamina WHERE tahun=(SELECT max(tahun) FROM pen_bumn.data_total_lifting_pertamina)
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'data_total_produksi_pertamina' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada tanggal di atribut tanggal)'
+  WHEN max(tanggal) > DAY(CURDATE()) AND max(bulan)=MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(bulan) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(tahun),'-',max(bulan),'-',max(tanggal)) 
+ END AS tanggal_terupdate, '' AS jumlah_row_tabel FROM pen_bumn.data_total_produksi_pertamina WHERE bulan=(SELECT max(bulan) FROM pen_bumn.data_total_produksi_pertamina WHERE tahun=(SELECT max(tahun) FROM pen_bumn.data_total_produksi_pertamina))
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'data_total_produksi_pertamina' AS nama_tabel,
+'' AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_total_produksi_pertamina
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'dm_total_lifting_pertamina' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_total_lifting_pertamina
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'dm_total_penjualan_pertamina' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_total_penjualan_pertamina
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'dm_total_produksi_pertamina' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_total_produksi_pertamina
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'pertamina_1' AS nama_tabel ,
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(bulan) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pertamina_1
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'pertamina_2' AS nama_tabel, 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(bulan) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pertamina_2
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'pertamina_3' AS nama_tabel ,
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(bulan) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pertamina_3
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'pertamina_4' AS nama_tabel, 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(bulan) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pertamina_4
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'pertamina_5' AS nama_tabel, 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(bulan) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pertamina_5
+UNION ALL
+SELECT 'Pertamina' AS nama_BUMN, 'pertamina_6' AS nama_tabel, 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(bulan) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.pertamina_6
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'data_arpu_jenis_layanan_telkomsel' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(tahun),'-',max(bulan)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_arpu_jenis_layanan_telkomsel WHERE tahun=(SELECT max(tahun) FROM pen_bumn.data_arpu_jenis_layanan_telkomsel)
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'data_arpu_jenis_pembayaran_telkomsel' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(tahun),'-',max(bulan)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_arpu_jenis_pembayaran_telkomsel WHERE tahun=(SELECT max(tahun) FROM pen_bumn.data_arpu_jenis_pembayaran_telkomsel)
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpu_telkom' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpu_telkom
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpu_telkom_bck' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpu_telkom_bck
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpu_telkom_test' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpu_telkom_test
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpu_telkomsel' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpu_telkomsel
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpu_telkomsel_jenis_layanan' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpu_telkomsel_jenis_layanan
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpu_telkomsel_jenis_pembayaran' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpu_telkomsel_jenis_pembayaran
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'telkom_1' AS nama_tabel,  
+ CASE
+  WHEN max(Date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(Date) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.telkom_1
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'telkom_2' AS nama_tabel,  
+ CASE
+  WHEN max(date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.telkom_2
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'telkom_3' AS nama_tabel, 
+ CASE
+  WHEN max(date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.telkom_3
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'int_arpu' AS nama_tabel ,
+CASE
+  WHEN max(PERIODE) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(PERIODE),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di PERIODE salah) ',max(PERIODE))
+  WHEN SUBSTRING(max(PERIODE),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(PERIODE),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di PERIODE salah) ',max(PERIODE))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(PERIODE) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.int_arpu
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'int_arpu_cro' AS nama_tabel ,
+CASE
+  WHEN max(PERIODE) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(PERIODE),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di PERIODE salah) ',max(PERIODE))
+  WHEN SUBSTRING(max(PERIODE),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(PERIODE),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di PERIODE salah) ',max(PERIODE))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(PERIODE) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.int_arpu_cro
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'int_arpu_kota' AS nama_tabel ,
+CASE
+  WHEN max(PERIODE) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(PERIODE),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di PERIODE salah) ',max(PERIODE))
+  WHEN SUBSTRING(max(PERIODE),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(PERIODE),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di PERIODE salah) ',max(PERIODE))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(PERIODE) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.int_arpu_kota
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'int_arpu_reg' AS nama_tabel ,
+CASE
+  WHEN max(PERIODE) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(PERIODE),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di PERIODE salah) ',max(PERIODE))
+  WHEN SUBSTRING(max(PERIODE),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(PERIODE),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di PERIODE salah) ',max(PERIODE))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(PERIODE) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.int_arpu_reg
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpurev_nasional_telkomsel' AS nama_tabel ,
+CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(tanggal),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di atribut tanggal salah) ',max(tanggal))
+  WHEN SUBSTRING(max(tanggal),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(tanggal),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di atribut tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpurev_nasional_telkomsel
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'dm_arpurev_regional_telkomsel' AS nama_tabel ,
+CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(tanggal),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di atribut tanggal salah) ',max(tanggal))
+  WHEN SUBSTRING(max(tanggal),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(tanggal),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di atribut tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_arpurev_regional_telkomsel
+UNION ALL
+SELECT 'Telkom' AS nama_BUMN, 'int_arpu_regional' AS nama_tabel ,
+CASE
+  WHEN max(PERIODE) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN SUBSTRING(max(PERIODE),1,4) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di PERIODE salah) ',max(PERIODE))
+  WHEN SUBSTRING(max(PERIODE),5,6) > MONTH(CURDATE()) AND SUBSTRING(max(PERIODE),1,4)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di PERIODE salah) ',max(PERIODE))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(PERIODE) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.int_arpu_regional
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'customer_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.customer_inalum WHERE tahun=(SELECT max(tahun) FROM pen_bumn.customer_inalum)
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'data_LME_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_LME_inalum
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'data_komoditi_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_komoditi_inalum WHERE tahun=(SELECT max(tahun) FROM pen_bumn.data_komoditi_inalum)
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'data_sales_inalum' AS nama_tabel ,  
+ CASE
+  WHEN max(end) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(end) > CURDATE() THEN CONCAT('(<!> tanggal di atribut end salah) ',max(end))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(end) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_sales_inalum
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'dm_commodity_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(periode) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(periode) > CURDATE() THEN CONCAT('(<!> periode salah) ',max(periode))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(periode) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_commodity_inalum
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'dm_lme_inalum' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_lme_inalum
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'dm_sales_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(end_date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(end_date) > CURDATE() THEN CONCAT('(<!> tanggal di atribut end_date salah) ',max(end_date))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(end_date) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_sales_inalum
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'penjualan_by_product_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penjualan_by_product_inalum WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penjualan_by_product_inalum)
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'penjualan_by_prov_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penjualan_by_prov_inalum WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penjualan_by_prov_inalum)
+UNION ALL
+SELECT 'Inalum' AS nama_BUMN, 'penjualan_inalum' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penjualan_inalum WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penjualan_inalum)
+UNION ALL
+SELECT 'Pupuk Indonesia' AS nama_BUMN, 'data_pupuk_pi' AS nama_tabel , 
+ CASE
+  WHEN max(Bulan) IS NULL THEN '(tidak ada bulan di atribut Bulan)'
+  WHEN max(Bulan) > MONTH(CURDATE()) AND max(Tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di atribut Bulan salah) ',max(Bulan))
+  WHEN max(Tahun) IS NULL THEN '(tidak ada tahun di atribut Tahun)'
+  WHEN max(Tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di atribut Tahun salah) ',max(Tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(Tahun),'-',max(Bulan)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_pupuk_pi WHERE Tahun=(SELECT max(Tahun) FROM pen_bumn.data_pupuk_pi)
+UNION ALL
+SELECT 'Pupuk Indonesia' AS nama_BUMN, 'dm_penyaluran_pupuk_subsidi_pi' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penyaluran_pupuk_subsidi_pi
+UNION ALL
+SELECT 'Pupuk Indonesia' AS nama_BUMN, 'penyaluran_by_jenis_pupuk_idn' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penyaluran_by_jenis_pupuk_idn WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penyaluran_by_jenis_pupuk_idn)
+UNION ALL
+SELECT 'Pupuk Indonesia' AS nama_BUMN, 'penyaluran_by_prov_pupuk_idn' AS nama_tabel,  
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penyaluran_by_prov_pupuk_idn WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penyaluran_by_prov_pupuk_idn)
+UNION ALL
+SELECT 'Pupuk Indonesia' AS nama_BUMN, 'penyaluran_pupuk_idn' AS nama_tabel, 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penyaluran_pupuk_idn WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penyaluran_pupuk_idn)
+UNION ALL
+SELECT 'Semen Indonesia' AS nama_BUMN, 'dm_csr_semen_indonesia' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_csr_semen_indonesia
+UNION ALL
+SELECT 'Semen Indonesia' AS nama_BUMN, 'dm_sales_semen_indonesia' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_sales_semen_indonesia
+UNION ALL
+SELECT 'Semen Indonesia' AS nama_BUMN, 'dm_stock_semen_indonesia' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_stock_semen_indonesia
+UNION ALL
+SELECT 'Semen Indonesia' AS nama_BUMN, 'penjualan_semen' AS nama_tabel,  
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penjualan_semen WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penjualan_semen)
+UNION ALL
+SELECT 'Semen Indonesia' AS nama_BUMN, 'penjualan_semen_per_jenis_kemas' AS nama_tabel, 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penjualan_semen_per_jenis_kemas WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penjualan_semen_per_jenis_kemas)
+UNION ALL
+SELECT 'Semen Indonesia' AS nama_BUMN, 'semen_sales' AS nama_tabel, 
+ CASE
+  WHEN max(tanggal_transaksi) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal_transaksi) > CURDATE() THEN CONCAT('(<!> tanggal di atribut tanggal_transaksi salah) ',max(tanggal_transaksi))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal_transaksi) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.semen_sales
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'data_pembelian_ptpn' AS nama_tabel ,
+ CASE
+  WHEN max(last_changed_on) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(last_changed_on) > CURDATE() THEN CONCAT('(<!> tanggal di atribut last_changed_on salah) ',max(last_changed_on))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(last_changed_on) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_pembelian_ptpn
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'data_penjualan_ptpn' AS nama_tabel , 
+ CASE
+  WHEN max(billing_date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(billing_date) > CURDATE() THEN CONCAT('(<!> tanggal di atribut billing_date salah) ',max(billing_date))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(billing_date) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_penjualan_ptpn
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'dm_pembelian_komoditi_ptpn' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pembelian_komoditi_ptpn
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'dm_pembelian_komoditi_ptpn_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pembelian_komoditi_ptpn_copy
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'dm_pembelian_komoditi_ptpn_jan20' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_pembelian_komoditi_ptpn_jan20
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'dm_penjualan_komoditi_ptpn' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penjualan_komoditi_ptpn
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'dm_tabel_ptpn' AS nama_tabel , '(tidak ada atribut tanggal)' AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_tabel_ptpn
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'penjualan_by_komoditas_ptpn' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, 
+ count(*) AS jumlah_row_tabel FROM pen_bumn.penjualan_by_komoditas_ptpn WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penjualan_by_komoditas_ptpn)
+UNION ALL
+SELECT 'PTPN' AS nama_BUMN, 'penjualan_v_produksi_ptpn' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.penjualan_v_produksi_ptpn WHERE tahun=(SELECT max(tahun) FROM pen_bumn.penjualan_v_produksi_ptpn)
+UNION ALL
+SELECT 'Garuda' AS nama_BUMN, 'data_airport_cd_garuda' AS nama_tabel , '(tidak ada atribut tanggal)' AS tanggal_terupdate, 
+ count(*) AS jumlah_row_tabel FROM pen_bumn.data_airport_cd_garuda
+UNION ALL
+SELECT 'Garuda' AS nama_BUMN, 'data_garuda' AS nama_tabel , 
+ CASE
+  WHEN max(Month) IS NULL THEN '(tidak ada bulan di atribut Month)'
+  WHEN max(Month) > MONTH(CURDATE()) AND max(Year)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan di atribut Month salah) ',max(Month))
+  WHEN max(Year) IS NULL THEN '(tidak ada tahun di atribut Year)'
+  WHEN max(Year) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun di atribut Year salah) ',max(Year))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(Year),'-',max(Month)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_garuda WHERE Year=(SELECT max(Year) FROM pen_bumn.data_garuda)
+UNION ALL
+SELECT 'Garuda' AS nama_BUMN, 'dm_cargo_garuda' AS nama_tabel , 
+ CASE
+  WHEN max(date_insert) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(date_insert) > CURDATE() THEN CONCAT('(<!> tanggal di atribut date_insert salah) ',max(date_insert))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date_insert) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_cargo_garuda
+UNION ALL
+SELECT 'Garuda' AS nama_BUMN, 'dm_cargo_garuda_copy' AS nama_tabel , 
+ CASE
+  WHEN max(date_insert) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(date_insert) > CURDATE() THEN CONCAT('(<!> tanggal di atribut date_insert salah) ',max(date_insert))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date_insert) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_cargo_garuda_copy
+UNION ALL
+SELECT 'Garuda' AS nama_BUMN, 'dm_passenger_garuda' AS nama_tabel , 
+ CASE
+  WHEN max(date_insert) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(date_insert) > CURDATE() THEN CONCAT('(<!> tanggal di atribut date_insert salah) ',max(date_insert))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date_insert) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_passenger_garuda
+UNION ALL
+SELECT 'Garuda' AS nama_BUMN, 'dm_passenger_garuda_copy' AS nama_tabel , 
+ CASE
+  WHEN max(date_insert) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(date_insert) > CURDATE() THEN CONCAT('(<!> tanggal di atribut date_insert salah) ',max(date_insert))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date_insert) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_passenger_garuda_copy
+UNION ALL
+SELECT 'Garuda' AS nama_BUMN, 'garuda_indonesia' AS nama_tabel ,  
+ CASE
+  WHEN max(date) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(date) > NOW() THEN CONCAT('(<!> tanggal di atribut date salah)',max(date))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(date)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.garuda_indonesia
+UNION ALL
+SELECT 'Citilink' AS nama_BUMN, 'dm_cargo_citilink' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal_departure) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal_departure) > NOW() THEN CONCAT('(<!> tanggal_departure salah)',max(tanggal_departure))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal_departure)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_cargo_citilink
+UNION ALL
+SELECT 'Citilink' AS nama_BUMN, 'dm_passenger_citilink' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal_departure) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal_departure) > NOW() THEN CONCAT('(<!> tanggal_departure salah)',max(tanggal_departure))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal_departure)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_passenger_citilink
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'data_serapan_bulog' AS nama_tabel ,  
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > NOW() THEN CONCAT('(<!> tanggal salah)',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_serapan_bulog
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'data_stok_bulog' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.data_stok_bulog
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'dm_bansos_covid_bulog' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bansos_covid_bulog
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'dm_bansos_kemensos_bulog' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bansos_kemensos_bulog
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'dm_serapan_petani_bulog' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_serapan_petani_bulog
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'dm_stok_cbp_bulog' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_stok_cbp_bulog
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'program_penyerapan_beras_bulog' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.program_penyerapan_beras_bulog WHERE tahun=(SELECT max(tahun) FROM pen_bumn.program_penyerapan_beras_bulog)
+UNION ALL
+SELECT 'Bulog' AS nama_BUMN, 'stock_bulog' AS nama_tabel , 
+ CASE
+  WHEN max(bulan) IS NULL THEN '(tidak ada bulan di atribut bulan)'
+  WHEN max(bulan) > MONTH(CURDATE()) AND max(tahun)=YEAR(CURDATE()) THEN CONCAT('(<!> bulan salah) ',max(bulan))
+  WHEN max(tahun) IS NULL THEN '(tidak ada tahun di atribut tahun)'
+  WHEN max(tahun) > YEAR(CURDATE()) THEN CONCAT('(<!> tahun salah) ',max(tahun))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE CONCAT(max(bulan),' ',max(tahun)) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.stock_bulog WHERE tahun=(SELECT max(tahun) FROM pen_bumn.stock_bulog)
+UNION ALL
+SELECT 'Mandiri' AS nama_BUMN, 'dm_bunga_kur_nonkur_mandiri' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bunga_kur_nonkur_mandiri
+UNION ALL
+SELECT 'Mandiri' AS nama_BUMN, 'dm_bunga_kur_nonkur_mandiri_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bunga_kur_nonkur_mandiri_copy
+UNION ALL
+SELECT 'Mandiri' AS nama_BUMN, 'dm_penempatan_dana_pmk70_mandiri' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penempatan_dana_pmk70_mandiri
+UNION ALL
+SELECT 'Mandiri' AS nama_BUMN, 'dm_penempatan_dana_pmk70_mandiri_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penempatan_dana_pmk70_mandiri_copy
+UNION ALL
+SELECT 'Mandiri' AS nama_BUMN, 'dm_renc_realisasi_dana_pmk70_mandiri' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_mandiri
+UNION ALL
+SELECT 'Mandiri' AS nama_BUMN, 'dm_renc_realisasi_dana_pmk70_mandiri_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_mandiri_copy
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'bank_bni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.bank_bni
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'bank_bni_proyeksi' AS nama_tabel , 
+ CASE
+  WHEN max(timestamp) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(timestamp) > NOW() THEN CONCAT('(<!> tanggal di atribut timestamp salah)',max(timestamp))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(timestamp)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.bank_bni_proyeksi
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'dm_bunga_kur_nonkur_bni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bunga_kur_nonkur_bni
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'dm_bunga_kur_nonkur_bni_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bunga_kur_nonkur_bni_copy
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'dm_penempatan_dana_pmk70_bni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penempatan_dana_pmk70_bni
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'dm_penempatan_dana_pmk70_bni_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penempatan_dana_pmk70_bni_copy
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'dm_renc_realisasi_dana_pmk70_bni' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_bni
+UNION ALL
+SELECT 'BNI' AS nama_BUMN, 'dm_renc_realisasi_dana_pmk70_bni_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_bni_copy
+UNION ALL
+SELECT 'BTN' AS nama_BUMN, 'dm_bunga_kur_nonkur_btn' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bunga_kur_nonkur_btn
+UNION ALL
+SELECT 'BTN' AS nama_BUMN, 'dm_penempatan_dana_pmk70_btn' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penempatan_dana_pmk70_btn
+UNION ALL
+SELECT 'BTN' AS nama_BUMN, 'dm_renc_realisasi_dana_pmk70_btn' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_btn
+UNION ALL
+SELECT 'BTN' AS nama_BUMN, 'dm_renc_realisasi_dana_pmk70_btn_copy' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_btn_copy
+UNION ALL
+SELECT 'BRI' AS nama_BUMN, 'bank_bri' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.bank_bri
+UNION ALL
+SELECT 'BRI' AS nama_BUMN, 'bank_bri_proyeksi' AS nama_tabel , 
+ CASE
+  WHEN max(timestamp) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(timestamp) > NOW() THEN CONCAT('(<!> tanggal di atribut timestamp salah)',max(timestamp))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(timestamp)
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.bank_bri_proyeksi
+UNION ALL
+SELECT 'BRI' AS nama_BUMN, 'dm_bunga_kur_nonkur_bri' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_bunga_kur_nonkur_bri
+UNION ALL
+SELECT 'BRI' AS nama_BUMN, 'dm_penempatan_dana_pmk70_bri' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_penempatan_dana_pmk70_bri
+UNION ALL
+SELECT 'BRI' AS nama_BUMN, 'dm_renc_realisasi_dana_pmk70_bri' AS nama_tabel , 
+ CASE
+  WHEN max(tanggal) IS NULL THEN '(tidak ada data sama sekali)'
+  WHEN max(tanggal) > CURDATE() THEN CONCAT('(<!> tanggal salah) ',max(tanggal))
+  WHEN max(tanggal) > CURDATE() THEN SET @Error=@Error+1 ELSE max(tanggal) 
+ END AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_bri
+UNION ALL
+SELECT 'HASIL DEBUGGING' AS nama_BUMN, '' AS nama_tabel , 
+CONCAT(@Error,' Kesalahan') AS tanggal_terupdate, count(*) AS jumlah_row_tabel FROM pen_bumn.dm_renc_realisasi_dana_pmk70_bri
+/* Dimohon untuk membaca keterangan di bagian paling atas */
