@@ -9,6 +9,6 @@ Selamat pagi/siang/sore Pak Zul dan Pak Eric, berikut ini terlampir proyek-proye
 # Data Terupdate
 (PHP, JavaScript) Proyek magang saya di PT. Telkom Indonesia, Tbk
 # Skripsi-S1
-(Laravel)Skripsi S1 mengenai aplikasi web untuk membantu pembelajaran matakuliah TI
+(Laravel) Skripsi S1 mengenai aplikasi web untuk membantu pembelajaran matakuliah TI
 # Tugas Laravel semester 5
-(Laravel)Tugas proyek saya di semester 5, membuat semacam web untuk online shop
+(Laravel) Tugas proyek saya di semester 5, membuat semacam web untuk online shop
