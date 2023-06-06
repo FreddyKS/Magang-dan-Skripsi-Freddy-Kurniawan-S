@@ -1,6 +1,7 @@
 <i>Kepada Yth.
-Bapak Zulfikar, Head of Information Technology 
-Bapak Eric Prakarsa Putra, Senior Software Engineer
+Bapak Zulfikar, Head of Information Technology<br>
+dan <br>
+Bapak Eric Prakarsa Putra, Senior Software Engineer<br>
 Fresh Factory di tempat,</i>
 
 Selamat pagi/siang/sore Pak Zul dan Pak Eric, berikut ini terlampir proyek-proyek saya dengan penjelasan sebagai berikut : 
